@@ -1,0 +1,215 @@
+@charset "utf-8";
+
+/* ============================================================
+   3DモデルARビューア — スタイル
+   白黒印刷は想定しない画面用UI。タッチ／トラックパッド両対応。
+   ============================================================ */
+
+:root{
+  --bg:#f4f6f8;
+  --card:#ffffff;
+  --ink:#1c2530;
+  --sub:#5b6875;
+  --line:#d5dce3;
+  --key:#1466b8;
+  --key-d:#0f4f8f;
+  --warn:#b3261e;
+  --ok:#1e7a46;
+  --radius:12px;
+}
+
+*{ box-sizing:border-box; }
+
+html,body{
+  margin:0; padding:0;
+  background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;
+  font-size:16px; line-height:1.7;
+  -webkit-text-size-adjust:100%;
+}
+
+/* AR中はページ全体をスクロールさせない */
+body.ar-mode{ overflow:hidden; }
+
+.is-hidden{ display:none !important; }
+
+/* ---------- 画面切替 ---------- */
+.screen{ display:none; }
+.screen.is-active{ display:block; }
+#ar.is-active, #shot.is-active{
+  display:block; position:fixed; inset:0; z-index:9000; background:#000;
+}
+
+/* ---------- ホーム ---------- */
+.hd{
+  background:var(--key); color:#fff;
+  padding:20px 16px 18px; text-align:center;
+}
+.hd h1{ margin:0; font-size:22px; letter-spacing:.02em; }
+.hd .sub{ margin:6px 0 0; font-size:14px; opacity:.92; }
+
+.wrap{ max-width:720px; margin:0 auto; padding:16px 14px 48px; }
+
+.card{
+  background:var(--card); border:1px solid var(--line);
+  border-radius:var(--radius); padding:16px; margin:0 0 14px;
+}
+.card h2{
+  margin:0 0 12px; font-size:17px; display:flex; align-items:center; gap:10px;
+}
+.num{
+  flex:0 0 auto; width:28px; height:28px; border-radius:50%;
+  background:var(--key); color:#fff;
+  font-size:15px; display:grid; place-items:center;
+}
+
+.note{ margin:8px 0 0; font-size:13px; color:var(--sub); }
+.note.center{ text-align:center; }
+
+.err{
+  margin:10px 0 0; padding:10px 12px; font-size:14px;
+  color:var(--warn); background:#fdecea; border:1px solid #f5c6c2; border-radius:8px;
+  white-space:pre-wrap;
+}
+
+input[type=file], select{
+  width:100%; padding:10px; font-size:15px; font-family:inherit;
+  border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink);
+}
+select{ margin-bottom:10px; }
+
+.radios{ display:flex; flex-wrap:wrap; gap:8px 20px; margin-bottom:10px; }
+.radios label, .check{ font-size:15px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; }
+.check{ margin-top:6px; }
+input[type=radio], input[type=checkbox]{ width:18px; height:18px; accent-color:var(--key); }
+
+.field{ margin:0 0 16px; }
+.field > label{
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-size:15px; font-weight:700; margin-bottom:4px;
+}
+.field .val{ font-weight:400; font-variant-numeric:tabular-nums; color:var(--key); }
+input[type=range]{ width:100%; accent-color:var(--key); height:28px; }
+
+/* ---------- ボタン ---------- */
+.btn{
+  display:inline-block; padding:11px 18px; font-size:15px; font-family:inherit;
+  border-radius:9px; border:1px solid transparent; cursor:pointer;
+  text-decoration:none; text-align:center;
+}
+.btn.primary{ background:var(--key); color:#fff; }
+.btn.primary:hover:not(:disabled){ background:var(--key-d); }
+.btn.primary:disabled{ background:#a9b6c2; cursor:not-allowed; }
+.btn.ghost{ background:#fff; color:var(--key); border-color:var(--key); }
+.btn.ghost:hover{ background:#eaf2fb; }
+.btn.big{ display:block; width:100%; padding:16px; font-size:18px; font-weight:700; margin-top:6px; }
+
+/* ---------- プレビュー ---------- */
+.preview-box{ margin-top:12px; }
+#preview{
+  display:block; width:100%; height:260px;
+  background:#eef1f4; border:1px solid var(--line); border-radius:8px;
+  touch-action:none; cursor:grab;
+}
+#preview:active{ cursor:grabbing; }
+.preview-cap{ margin:6px 0 0; font-size:12px; color:var(--sub); text-align:center; }
+
+/* ---------- モデル情報 ---------- */
+.info{
+  margin-top:12px; padding:12px; font-size:13px; line-height:1.9;
+  background:#f0f5fa; border:1px solid #cfdcea; border-radius:8px;
+}
+.info dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:2px 12px; }
+.info dt{ color:var(--sub); white-space:nowrap; }
+.info dd{ margin:0; font-variant-numeric:tabular-nums; }
+.info .flag-ok{ color:var(--ok); }
+.info .flag-warn{ color:var(--warn); }
+
+.ft{ margin-top:22px; font-size:12px; color:var(--sub); text-align:center; }
+.ft p{ margin:4px 0; }
+
+/* ============================================================
+   AR画面
+   ============================================================ */
+/* AR.js は映像要素を body 直下・z-index:-2 で挿入する。
+   AR画面(#ar)は z-index:9000 の独立した重ね合わせ文脈なので、そのままでは
+   映像が背面に隠れる。JS側で #sceneHost へ移し、重ね順をここで決める。
+   ※ 映像とWebGLキャンバスのサイズは AR.js が一致させている(copyElementSizeTo)。
+      CSSでサイズを上書きするとマーカーとモデルがずれるため、絶対に触らない。 */
+#sceneHost{ position:absolute; inset:0; overflow:hidden; }
+#sceneHost > video{ z-index:0 !important; }
+#sceneHost .a-canvas{ z-index:1 !important; }
+
+#hud{ position:absolute; inset:0; z-index:10000; pointer-events:none; }
+#hud > *{ pointer-events:auto; }
+
+.hudbtn{
+  font-family:inherit; font-size:15px; color:#fff;
+  background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.5);
+  border-radius:9px; padding:10px 14px; cursor:pointer;
+}
+.hudbtn:hover{ background:rgba(0,0,0,.75); }
+.hudbtn.corner{ position:absolute; top:14px; }
+.hudbtn.corner.tl{ left:14px; }
+.hudbtn.corner.tr{ right:14px; }
+.hudbtn.round{ width:58px; height:58px; border-radius:50%; font-size:17px; }
+
+.hint{
+  position:absolute; top:70px; left:50%; transform:translateX(-50%);
+  max-width:88%; padding:9px 16px; text-align:center;
+  font-size:15px; color:#fff; background:rgba(0,0,0,.6);
+  border-radius:20px; transition:opacity .25s;
+}
+.hint.is-off{ opacity:0; pointer-events:none; }
+
+#ctrl{
+  position:absolute; left:0; right:0; bottom:26px;
+  display:flex; align-items:center; justify-content:center; gap:26px;
+}
+#shutter{
+  width:82px; height:82px; border-radius:50%; cursor:pointer;
+  background:rgba(255,255,255,.28); border:4px solid #fff;
+  display:grid; place-items:center; padding:0;
+}
+#shutter span{
+  display:block; width:62px; height:62px; border-radius:50%;
+  background:#fff; transition:transform .1s;
+}
+#shutter:active span{ transform:scale(.86); }
+
+#flash{
+  position:absolute; inset:0; background:#fff; opacity:0;
+  pointer-events:none; z-index:10001;
+}
+#flash.is-on{ animation:flash .32s ease-out; }
+@keyframes flash{ from{opacity:.95;} to{opacity:0;} }
+
+.ar-error{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:86%; max-width:460px; padding:18px;
+  background:#fff; color:var(--warn); border-radius:10px;
+  font-size:15px; line-height:1.8; white-space:pre-wrap; z-index:10002;
+}
+
+/* ============================================================
+   撮影結果
+   ============================================================ */
+.shot-view{ position:absolute; inset:0 0 96px; display:grid; place-items:center; background:#000; }
+#shotImg{ max-width:100%; max-height:100%; object-fit:contain; }
+.shot-bar{
+  position:absolute; left:0; right:0; bottom:0; height:96px;
+  display:flex; align-items:center; justify-content:center; gap:16px;
+  background:#111;
+}
+.shot-bar .btn{ min-width:150px; padding:14px 20px; font-size:16px; }
+.shot-bar .btn.ghost{ background:transparent; color:#fff; border-color:#fff; }
+.shot-bar .btn.ghost:hover{ background:rgba(255,255,255,.15); }
+
+/* ---------- 狭い画面 ---------- */
+@media (max-width:420px){
+  .hd h1{ font-size:19px; }
+  #shutter{ width:70px; height:70px; }
+  #shutter span{ width:52px; height:52px; }
+  .hudbtn.round{ width:50px; height:50px; font-size:15px; }
+  #ctrl{ gap:18px; }
+}

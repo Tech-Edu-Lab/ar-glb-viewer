@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>3DモデルARビューア</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============================================================
+     ホーム画面
+     ============================================================ -->
+<div id="home" class="screen is-active">
+  <header class="hd">
+    <h1>3DモデルARビューア</h1>
+    <p class="sub">「作ってみよう！」でつくった作品を、マーカーの上にARで表示します</p>
+  </header>
+
+  <main class="wrap">
+
+    <!-- 1. モデル -->
+    <section class="card">
+      <h2><span class="num">1</span>3Dモデル（GLB）をえらぶ</h2>
+      <input type="file" id="glbInput" accept=".glb,.gltf,model/gltf-binary">
+      <p class="note">「作ってみよう！」の〔保存〕で <b>.glb</b> を選んで書き出したファイルです。</p>
+
+      <div id="previewBox" class="preview-box is-hidden">
+        <canvas id="preview"></canvas>
+        <p class="preview-cap">ドラッグで回せます／四角い枠がマーカーの大きさです</p>
+      </div>
+
+      <div id="glbInfo" class="info is-hidden"></div>
+      <p id="glbError" class="err is-hidden"></p>
+    </section>
+
+    <!-- 2. マーカー -->
+    <section class="card">
+      <h2><span class="num">2</span>マーカーを用意する</h2>
+      <div class="radios">
+        <label><input type="radio" name="mk" value="hiro" checked> Hiroマーカー（標準）</label>
+        <label><input type="radio" name="mk" value="custom"> 自分の .patt ファイル</label>
+      </div>
+      <input type="file" id="pattInput" accept=".patt" class="is-hidden">
+      <p id="pattName" class="note is-hidden"></p>
+      <a class="btn ghost" href="marker/print.html" target="_blank" rel="noopener">マーカーを印刷する</a>
+      <p class="note">白い紙に印刷して、平らな机に置いてください。1辺 8cm 以上をおすすめします。</p>
+    </section>
+
+    <!-- 3. 見え方 -->
+    <section class="card">
+      <h2><span class="num">3</span>見え方をととのえる</h2>
+
+      <div class="field">
+        <label for="sizeRange">大きさ<span class="val" id="sizeVal">1.0</span></label>
+        <input type="range" id="sizeRange" min="0.3" max="3" step="0.1" value="1">
+        <p class="note">1.0 = マーカーとだいたい同じ大きさ</p>
+      </div>
+
+      <div class="field">
+        <label for="liftRange">浮かせる<span class="val" id="liftVal">0.00</span></label>
+        <input type="range" id="liftRange" min="0" max="1" step="0.05" value="0">
+      </div>
+
+      <div class="field">
+        <label for="upSelect">上の向き</label>
+        <select id="upSelect">
+          <option value="auto">自動でそろえる（おすすめ）</option>
+          <option value="z">Z軸が上（作ってみよう！／CAD向け）</option>
+          <option value="y">Y軸が上（そのまま表示）</option>
+        </select>
+      </div>
+
+      <label class="check"><input type="checkbox" id="spinChk"> ゆっくり回す</label>
+    </section>
+
+    <!-- 4. カメラ -->
+    <section class="card">
+      <h2><span class="num">4</span>カメラ</h2>
+      <select id="camSelect"><option value="">自動（おまかせ）</option></select>
+      <button class="btn ghost" id="camListBtn" type="button">カメラの一覧を取得</button>
+      <p class="note">Chromebookで内蔵カメラが選ばれないときに使います。</p>
+    </section>
+
+    <button id="startBtn" class="btn primary big" type="button" disabled>ARをはじめる</button>
+    <p id="startHint" class="note center">まず <b>1</b> で GLBファイルをえらんでください。</p>
+
+    <footer class="ft">
+      <p>カメラを使うため <b>https://</b> または <b>localhost</b> で開いてください。</p>
+    </footer>
+  </main>
+</div>
+
+<!-- ============================================================
+     AR画面
+     ============================================================ -->
+<div id="ar" class="screen">
+  <div id="sceneHost"></div>
+
+  <div id="hud">
+    <button id="backBtn" class="hudbtn corner tl" type="button">もどる</button>
+    <button id="upBtn"   class="hudbtn corner tr" type="button">向きをかえる</button>
+
+    <div id="hint" class="hint">マーカーをカメラにうつしてください</div>
+
+    <div id="ctrl">
+      <button class="hudbtn round" id="smallBtn" type="button">小</button>
+      <button id="shutter" type="button" aria-label="さつえいする"><span></span></button>
+      <button class="hudbtn round" id="bigBtn" type="button">大</button>
+    </div>
+  </div>
+
+  <div id="flash"></div>
+  <div id="arError" class="ar-error is-hidden"></div>
+</div>
+
+<!-- ============================================================
+     撮影結果
+     ============================================================ -->
+<div id="shot" class="screen">
+  <div class="shot-view"><img id="shotImg" alt="さつえいした写真"></div>
+  <div class="shot-bar">
+    <button class="btn ghost"   id="retakeBtn" type="button">とりなおす</button>
+    <button class="btn primary" id="saveBtn"   type="button">写真を保存</button>
+  </div>
+</div>
+
+<script src="vendor/aframe.min.js"></script>
+<script src="vendor/aframe-ar.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

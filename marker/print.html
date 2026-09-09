@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARマーカーの印刷</title>
+<style>
+  @page { size: A4 portrait; margin: 15mm; }
+  html,body{ margin:0; padding:0; background:#f4f6f8; color:#1c2530;
+    font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif; }
+  .sheet{ background:#fff; max-width:210mm; margin:0 auto; padding:15mm; }
+  h1{ font-size:20px; margin:0 0 4px; }
+  .lead{ font-size:14px; color:#5b6875; margin:0 0 14px; line-height:1.7; }
+  .marker-area{ text-align:center; margin:10mm 0; }
+  /* 白い余白(クワイエットゾーン)ごと印刷する。ここを削ると認識しなくなる */
+  .marker{
+    display:inline-block; width:110mm; height:110mm; padding:5mm;
+    background:#fff; border:1px dashed #b9c2cb;
+  }
+  .marker img{ display:block; width:100%; height:100%; }
+  .cap{ font-size:12px; color:#5b6875; margin-top:3mm; }
+  ol{ font-size:14px; line-height:1.9; padding-left:1.4em; margin:0; }
+  .bar{ text-align:center; margin:18px 0 24px; }
+  .btn{ font:inherit; font-size:16px; padding:12px 26px; border-radius:9px;
+        background:#1466b8; color:#fff; border:0; cursor:pointer; }
+  .btn:hover{ background:#0f4f8f; }
+  @media print{
+    body{ background:#fff; }
+    .sheet{ max-width:none; margin:0; padding:0; }
+    .no-print{ display:none !important; }
+    .marker{ border:none; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>ARマーカー（Hiro）</h1>
+  <p class="lead">白い紙に <b>等倍（100%）</b> で印刷してください。<br>
+     「用紙に合わせる」で縮小しても使えますが、大きいほど遠くから認識できます。</p>
+
+  <div class="bar no-print">
+    <button class="btn" type="button" onclick="window.print()">印刷する</button>
+  </div>
+
+  <div class="marker-area">
+    <div class="marker"><img src="hiro.png" alt="Hiroマーカー"></div>
+    <p class="cap">黒い枠のまわりの白い余白も、切らずに残してください。</p>
+  </div>
+
+  <ol>
+    <li>印刷した紙を、<b>平らな机</b>にしわなく置きます。</li>
+    <li>光の反射で白とびすると認識しません。真上からの照明や窓の映り込みを避けます。</li>
+    <li>マーカー全体がカメラに入るように、20〜60cm ほど離して写します。</li>
+    <li>下じきに貼る、または厚紙に貼ると安定します。</li>
+  </ol>
+</div>
+</body>
+</html>
