@@ -35,6 +35,16 @@
   var PREVIEW_BASE_VIEW_M = 0.3;
   // CADの数値(mm)をA-Frameの単位(m)に変換する係数。「作ってみよう！」はmmでエクスポートする前提。
   var MM_TO_M = 0.001;
+  // 【重要・実機テストで判明した落とし穴】
+  // 同梱のAR.jsビルドは <a-marker size="..."> を実装内部で一切参照しない(死んでいる属性)。
+  // ARToolKitの姿勢行列は常に「マーカー1辺の実寸＝1」という相対座標系で返ってくるため、
+  // 実際のメートル数値をそのまま置くと、マーカーの実寸(MARKER_SIZE_M)ぶん余計に縮んで見える。
+  // (実機カメラ映像の代わりに合成マーカー映像を流し込み、a-markerのmatrixWorldを
+  //  直接読み取って確認した。size属性の値を変えても行列が一切変化しないことを確認済み。)
+  // そのため、AR画面用のスケールだけは「実メートル ÷ マーカーの実寸」に変換して、
+  // ARToolKitの相対座標系に合わせる。ホーム画面プレビューは独立したthree.jsシーンで
+  // この変換は不要(素直に実メートルでよい)なので、fitModelのopts.arUnitScaleでのみ渡す。
+  var AR_UNIT_SCALE = 1 / MARKER_SIZE_M;
 
   /* ---------- 状態 ---------- */
   var state = {
@@ -112,7 +122,10 @@
     // ② 実寸表示：CADの数値(mm想定)をそのままメートルへ変換する。
     //    「作ってみよう！」が画面表示の1/10の数値で書き出すことがあるため、
     //    その補正(×10, opts.tenX)と、手動の微調整(opts.size)を掛け合わせる。
-    var scale = MM_TO_M * (opts.tenX ? 10 : 1) * (opts.size || 1);
+    //    opts.arUnitScale は AR画面だけに必要な追加変換（下記参照）。
+    //    プレビューでは渡さない＝1のまま＝素直に実メートル。
+    var realScale = MM_TO_M * (opts.tenX ? 10 : 1) * (opts.size || 1);
+    var scale = realScale * (opts.arUnitScale || 1);
     model.scale.setScalar(scale);
 
     // ③ 水平方向は中央、垂直方向は底面をマーカー面(y=0)へ
@@ -122,7 +135,7 @@
     model.position.z = -c2.z;
     model.position.y = -b2.min.y + (opts.lift || 0);
 
-    return { detectedUp: detected, usedUp: up, srcSize: s0, srcMax: max0, scale: scale };
+    return { detectedUp: detected, usedUp: up, srcSize: s0, srcMax: max0, scale: realScale };
   }
 
   /**
@@ -364,7 +377,7 @@
       if (!this.model) { return; }
       var keep = this.pivot.rotation.y;
       this.pivot.rotation.y = 0;            // 演出回転を除いた状態で正規化する
-      fitModel(this.model, { size: this.data.size, lift: this.data.lift, up: this.data.up, tenX: this.data.tenX });
+      fitModel(this.model, { size: this.data.size, lift: this.data.lift, up: this.data.up, tenX: this.data.tenX, arUnitScale: AR_UNIT_SCALE });
       this.pivot.rotation.y = keep;
     },
 
@@ -432,9 +445,8 @@
     // 同梱の .patt を明示指定して、学校ネットワークでも自己完結で動くようにする。
     marker.setAttribute('type', 'pattern');
     marker.setAttribute('url', state.markerMode === 'custom' && state.pattUrl ? state.pattUrl : PATT_HIRO);
-    // マーカーの実際の大きさ(m)。これを基準にAR.jsが実世界の距離・大きさを計算する。
-    // 自分の.pattを使う場合も同じ大きさで印刷されている前提（現状は確認手段がない）。
-    marker.setAttribute('size', String(MARKER_SIZE_M));
+    // 【注意】<a-marker size="..."> は同梱のAR.jsビルドでは効果がない(実測で確認済み)。
+    // 実寸表示のための換算は AR_UNIT_SCALE を介して fitModel 側で行っている。
     // 手ぶれ・ちらつき対策（現行アプリが不安定に見える一因）
     marker.setAttribute('smooth', 'true');
     marker.setAttribute('smoothCount', '10');
