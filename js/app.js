@@ -30,6 +30,9 @@
   // print.html側で画像の表示サイズを108.8mmにすることで、印刷した黒枠がちょうど
   // 100mmになるよう調整してある。印刷レイアウトを変えたら要更新。
   var MARKER_SIZE_M = 0.1;
+  // ホーム画面プレビューの基準視野(m)。モデルがこれより小さいときはこの広さのまま映す
+  // ことで、実際より小さいモデルが「小さいまま」見えるようにする(カメラを寄せて誤魔化さない)。
+  var PREVIEW_BASE_VIEW_M = 0.3;
   // CADの数値(mm)をA-Frameの単位(m)に変換する係数。「作ってみよう！」はmmでエクスポートする前提。
   var MM_TO_M = 0.001;
 
@@ -222,9 +225,10 @@
         pv.camera.aspect = w / h;
         pv.camera.updateProjectionMatrix();
       }
-      // 実寸表示になったため、モデルの実際の大きさ(pv.viewSize)に合わせてカメラを引く。
-      // 未読込み時はマーカーの大きさを基準にする。
-      var base = pv.viewSize || MARKER_SIZE_M;
+      // 実寸表示になったため、モデルが基準視野より大きいときだけカメラを引く。
+      // 小さいモデルでもカメラを寄せて大きく見せることはしない
+      // (寄せてしまうと「実際は小さい」ことが画面上で分からなくなるため)。
+      var base = pv.viewSize || PREVIEW_BASE_VIEW_M;
       var r = base * 2.4;
       pv.camera.position.set(
         Math.sin(pv.yaw) * Math.cos(pv.pitch) * r,
@@ -239,7 +243,7 @@
   function previewApply() {
     if (!pv.model) { return; }
     var fit = fitModel(pv.model, { size: state.size, lift: state.lift, up: state.up, tenX: state.scale10x });
-    if (fit) { pv.viewSize = Math.max(fit.srcMax * fit.scale, MARKER_SIZE_M); }
+    if (fit) { pv.viewSize = Math.max(fit.srcMax * fit.scale * 1.3, PREVIEW_BASE_VIEW_M); }
     if (state.curFile) { showInfo(state.curFile, state.curStats, fit); }
   }
 
