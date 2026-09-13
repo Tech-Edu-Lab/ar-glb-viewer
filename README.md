@@ -44,14 +44,14 @@ AR表示し、その場で写真を撮って保存できる Webアプリ。
 ### 手元で試す
 
 ```bash
-cd ar-glb-viewer
+cd app
 python3 -m http.server 8000
 # ブラウザで http://localhost:8000/ を開く
 ```
 
 ### 学校で配る
 
-`ar-glb-viewer` フォルダをまるごと静的ホスティングへ置く（GitHub Pages / Google Cloud Storage /
+`app/` フォルダの中身をまるごと静的ホスティングへ置く（GitHub Pages / Google Cloud Storage /
 校内Webサーバ等）。ビルド不要。外部CDNへの依存はない。
 
 ---
@@ -59,7 +59,7 @@ python3 -m http.server 8000
 ## 4. ファイル構成
 
 ```
-ar-glb-viewer/
+app/
 ├── index.html              画面（ホーム / AR / 撮影結果 の3画面SPA）
 ├── css/style.css           スタイル
 ├── js/app.js               本体ロジック

@@ -2,7 +2,8 @@ import * as THREE from './three.module.js';
 import fs from 'fs';
 
 // ---- app.js から正規化ロジックを実物のまま抜き出して評価する ----
-const src = fs.readFileSync('/home/tech-edu-lab/projects/ar-glb-viewer/js/app.js', 'utf8');
+// テストファイルからの相対で解決する（フォルダを移動しても壊れないように）
+const src = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const start = src.indexOf('function measureLocal');
 const end   = src.indexOf('/**\n   * マテリアルの安全化');
 if (start < 0 || end < 0) { throw new Error('関数の抽出に失敗'); }
