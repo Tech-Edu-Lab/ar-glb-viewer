@@ -13,8 +13,14 @@
   .lead{ font-size:14px; color:#5b6875; margin:0 0 14px; line-height:1.7; }
   .marker-area{ text-align:center; margin:10mm 0; }
   /* 白い余白(クワイエットゾーン)ごと印刷する。ここを削ると認識しなくなる */
+  /* hiro.png(2000x2000px)は黒枠の外側の四辺それぞれに画像1辺の4.05%の白余白を
+     内蔵しており、黒枠は画像の91.9%にしかならない。画像の表示サイズを108.8mmに
+     することで、印刷した黒枠がちょうど100mm(実寸表示の基準)になるよう調整している。
+     ここを変えたら js/app.js の MARKER_SIZE_M も合わせて変える。
+     ※ このファイルはbox-sizing未指定(content-box)。width指定がそのまま画像の
+        表示サイズになる(paddingは外側に加算される)。 */
   .marker{
-    display:inline-block; width:110mm; height:110mm; padding:5mm;
+    display:inline-block; width:108.8mm; height:108.8mm; padding:5mm;
     background:#fff; border:1px dashed #b9c2cb;
   }
   .marker img{ display:block; width:100%; height:100%; }
@@ -35,8 +41,8 @@
 <body>
 <div class="sheet">
   <h1>ARマーカー（Hiro）</h1>
-  <p class="lead">白い紙に <b>等倍（100%）</b> で印刷してください。<br>
-     「用紙に合わせる」で縮小しても使えますが、大きいほど遠くから認識できます。</p>
+  <p class="lead">白い紙に <b>必ず等倍（100%）</b> で印刷してください。<br>
+     「用紙に合わせる」などで拡大・縮小すると、ARで表示される作品の実際の大きさがズレてしまいます。</p>
 
   <div class="bar no-print">
     <button class="btn" type="button" onclick="window.print()">印刷する</button>
@@ -52,6 +58,7 @@
     <li>光の反射で白とびすると認識しません。真上からの照明や窓の映り込みを避けます。</li>
     <li>マーカー全体がカメラに入るように、20〜60cm ほど離して写します。</li>
     <li>下じきに貼る、または厚紙に貼ると安定します。</li>
+    <li>心配なときは、黒い枠の一辺を定規ではかってみてください。<b>10cm（100mm）</b>になっていれば、正しい大きさで印刷できています。</li>
   </ol>
 </div>
 </body>

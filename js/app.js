@@ -24,15 +24,25 @@
   var DET_W      = 640;
   var DET_H      = 360;
 
+  // マーカーの黒い枠1辺の実寸(m)。marker/print.html は必ずこの大きさで印刷される前提。
+  // hiro.png(2000x2000px)は黒枠の外側の四辺それぞれに、画像1辺の4.05%(81px)の
+  // 白い余白を内蔵しており、黒枠は画像の91.9%(1838/2000px)にしかならない。
+  // print.html側で画像の表示サイズを108.8mmにすることで、印刷した黒枠がちょうど
+  // 100mmになるよう調整してある。印刷レイアウトを変えたら要更新。
+  var MARKER_SIZE_M = 0.1;
+  // CADの数値(mm)をA-Frameの単位(m)に変換する係数。「作ってみよう！」はmmでエクスポートする前提。
+  var MM_TO_M = 0.001;
+
   /* ---------- 状態 ---------- */
   var state = {
     glbUrl: null, glbName: '',
     pattUrl: null, pattName: '',
     markerMode: 'hiro',
-    size: 1.0, lift: 0, up: 'auto', spin: false,
+    size: 1.0, lift: 0, up: 'auto', spin: false, scale10x: false,
     deviceId: '',
     sceneEl: null,
-    shotBlob: null
+    shotBlob: null,
+    curFile: null, curStats: null
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -96,11 +106,11 @@
     var up = (opts.up === 'auto') ? detected : opts.up;
     if (up === 'z') { model.rotation.x = -Math.PI / 2; }
 
-    // ② 回転後の寸法で一様スケール（最大辺 = opts.size）
-    var b1 = measureLocal(model);
-    var s1 = b1.getSize(new THREE.Vector3());
-    var max1 = Math.max(s1.x, s1.y, s1.z) || 1;
-    model.scale.setScalar(opts.size / max1);
+    // ② 実寸表示：CADの数値(mm想定)をそのままメートルへ変換する。
+    //    「作ってみよう！」が画面表示の1/10の数値で書き出すことがあるため、
+    //    その補正(×10, opts.tenX)と、手動の微調整(opts.size)を掛け合わせる。
+    var scale = MM_TO_M * (opts.tenX ? 10 : 1) * (opts.size || 1);
+    model.scale.setScalar(scale);
 
     // ③ 水平方向は中央、垂直方向は底面をマーカー面(y=0)へ
     var b2 = measureLocal(model);
@@ -109,7 +119,7 @@
     model.position.z = -c2.z;
     model.position.y = -b2.min.y + (opts.lift || 0);
 
-    return { detectedUp: detected, usedUp: up, srcSize: s0, srcMax: max0 };
+    return { detectedUp: detected, usedUp: up, srcSize: s0, srcMax: max0, scale: scale };
   }
 
   /**
@@ -180,8 +190,8 @@
     pv.camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
     addLights(pv.scene);
 
-    // マーカーの大きさ（1辺 = 1単位）を示す枠
-    var grid = new THREE.GridHelper(1, 4, 0x8c98a4, 0xc4ccd4);
+    // マーカーの実際の大きさ（黒枠1辺）を示す枠
+    var grid = new THREE.GridHelper(MARKER_SIZE_M, 4, 0x8c98a4, 0xc4ccd4);
     pv.scene.add(grid);
 
     pv.pivot = new THREE.Group();
@@ -212,19 +222,25 @@
         pv.camera.aspect = w / h;
         pv.camera.updateProjectionMatrix();
       }
-      var r = 2.4;
+      // 実寸表示になったため、モデルの実際の大きさ(pv.viewSize)に合わせてカメラを引く。
+      // 未読込み時はマーカーの大きさを基準にする。
+      var base = pv.viewSize || MARKER_SIZE_M;
+      var r = base * 2.4;
       pv.camera.position.set(
         Math.sin(pv.yaw) * Math.cos(pv.pitch) * r,
         Math.sin(pv.pitch) * r,
         Math.cos(pv.yaw) * Math.cos(pv.pitch) * r
       );
-      pv.camera.lookAt(0, 0.35, 0);
+      pv.camera.lookAt(0, base * 0.35, 0);
       pv.renderer.render(pv.scene, pv.camera);
     })();
   }
 
   function previewApply() {
-    if (pv.model) { fitModel(pv.model, { size: state.size, lift: state.lift, up: state.up }); }
+    if (!pv.model) { return; }
+    var fit = fitModel(pv.model, { size: state.size, lift: state.lift, up: state.up, tenX: state.scale10x });
+    if (fit) { pv.viewSize = Math.max(fit.srcMax * fit.scale, MARKER_SIZE_M); }
+    if (state.curFile) { showInfo(state.curFile, state.curStats, fit); }
   }
 
   /* ============================================================
@@ -247,11 +263,12 @@
       if (pv.model) { pv.pivot.remove(pv.model); }
       pv.model = root;
       pv.pivot.add(root);
-      var fit = fitModel(root, { size: state.size, lift: state.lift, up: state.up });
       pv.on = true;
       $('previewBox').classList.remove('is-hidden');
 
-      showInfo(file, stats, fit);
+      state.curFile = file;
+      state.curStats = stats;
+      previewApply();
       $('startBtn').disabled = false;
       $('startHint').innerHTML = 'マーカーを印刷して机に置いたら、<b>ARをはじめる</b> を押してください。';
     }, undefined, function (err) {
@@ -276,9 +293,11 @@
     }
     var s = fit.srcSize;
     var f2 = function (n) { return (Math.round(n * 100) / 100).toLocaleString('ja-JP'); };
+    var fcm = function (n) { return (Math.round(n * fit.scale * 100 * 10) / 10).toLocaleString('ja-JP'); };
     var upLabel = { z: 'Z軸が上（CAD由来）', y: 'Y軸が上（glTF標準）' }[fit.detectedUp];
     var rows = [
       ['ファイル', file.name + '（' + Math.round(file.size / 1024).toLocaleString('ja-JP') + ' KB）'],
+      ['実際の大きさ', '<b>' + fcm(s.x) + ' × ' + fcm(s.y) + ' × ' + fcm(s.z) + ' cm</b>（ARで表示されるサイズ）'],
       ['もとの寸法', f2(s.x) + ' × ' + f2(s.y) + ' × ' + f2(s.z) + '（GLB内の数値）'],
       ['自動判定した上方向', '<span class="' + (fit.detectedUp === 'z' ? 'flag-ok' : '') + '">' + upLabel + '</span>'],
       ['三角形の数', stats.tri.toLocaleString('ja-JP')],
@@ -290,10 +309,8 @@
     var html = '<dl>';
     rows.forEach(function (r) { html += '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; });
     html += '</dl>';
-    if (fit.srcMax > 10) {
-      html += '<p class="note">数値が大きいので、CADのmm値がそのまま入っているようです。' +
-              'AR表示では自動で縮小するため、そのままで問題ありません。</p>';
-    }
+    html += '<p class="note">「作ってみよう！」の画面に表示されていた大きさと見比べてください。' +
+            '実際より小さく表示される場合は、下の「10倍の大きさで表示する」にチェックを入れてください。</p>';
     box.innerHTML = html;
     box.classList.remove('is-hidden');
   }
@@ -307,7 +324,8 @@
       size: { type: 'number', default: 1 },
       lift: { type: 'number', default: 0 },
       up:   { type: 'string', default: 'auto' },
-      spin: { type: 'boolean', default: false }
+      spin: { type: 'boolean', default: false },
+      tenX: { type: 'boolean', default: false }
     },
 
     init: function () {
@@ -342,7 +360,7 @@
       if (!this.model) { return; }
       var keep = this.pivot.rotation.y;
       this.pivot.rotation.y = 0;            // 演出回転を除いた状態で正規化する
-      fitModel(this.model, { size: this.data.size, lift: this.data.lift, up: this.data.up });
+      fitModel(this.model, { size: this.data.size, lift: this.data.lift, up: this.data.up, tenX: this.data.tenX });
       this.pivot.rotation.y = keep;
     },
 
@@ -359,7 +377,7 @@
      5. AR画面の組み立てと後始末
      ============================================================ */
   function modelData() {
-    return { src: state.glbUrl, size: state.size, lift: state.lift, up: state.up, spin: state.spin };
+    return { src: state.glbUrl, size: state.size, lift: state.lift, up: state.up, spin: state.spin, tenX: state.scale10x };
   }
 
   function buildScene() {
@@ -410,6 +428,9 @@
     // 同梱の .patt を明示指定して、学校ネットワークでも自己完結で動くようにする。
     marker.setAttribute('type', 'pattern');
     marker.setAttribute('url', state.markerMode === 'custom' && state.pattUrl ? state.pattUrl : PATT_HIRO);
+    // マーカーの実際の大きさ(m)。これを基準にAR.jsが実世界の距離・大きさを計算する。
+    // 自分の.pattを使う場合も同じ大きさで印刷されている前提（現状は確認手段がない）。
+    marker.setAttribute('size', String(MARKER_SIZE_M));
     // 手ぶれ・ちらつき対策（現行アプリが不安定に見える一因）
     marker.setAttribute('smooth', 'true');
     marker.setAttribute('smoothCount', '10');
@@ -638,6 +659,12 @@
     $('sizeRange').addEventListener('input', function (e) {
       state.size = parseFloat(e.target.value);
       $('sizeVal').textContent = state.size.toFixed(1);
+      previewApply();
+      updateModelLive();
+    });
+
+    $('tenXChk').addEventListener('change', function (e) {
+      state.scale10x = e.target.checked;
       previewApply();
       updateModelLive();
     });

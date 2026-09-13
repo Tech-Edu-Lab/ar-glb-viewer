@@ -4,7 +4,8 @@ import fs from 'fs';
 // ---- app.js から正規化ロジックを実物のまま抜き出して評価する ----
 // テストファイルからの相対で解決する（フォルダを移動しても壊れないように）
 const src = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-const start = src.indexOf('function measureLocal');
+// fitModelが参照する定数(MARKER_SIZE_M, MM_TO_M)も含めて抜き出す
+const start = src.indexOf('var MARKER_SIZE_M');
 const end   = src.indexOf('/**\n   * マテリアルの安全化');
 if (start < 0 || end < 0) { throw new Error('関数の抽出に失敗'); }
 const body = src.slice(start, end);
@@ -20,6 +21,9 @@ function boxModel(sx, sy, sz, cx, cy, cz) {
   root.add(m);
   return root;
 }
+
+// アプリ本体(fitModel)と同じ前提: CADの数値はmm。値を変えたらこちらも変える。
+const MM_TO_M = 0.001;
 
 let pass = 0, fail = 0;
 const r3 = (n) => Math.round(n * 1000) / 1000;
@@ -42,28 +46,29 @@ function run(name, model, opts, expect) {
   const c = b.getCenter(new THREE.Vector3());
   const max = Math.max(s.x, s.y, s.z);
 
-  check(`最大辺 = ${opts.size}`, Math.abs(max - opts.size) < 1e-6, r3(max));
+  check(`最大辺 = ${r3(expect.max)}（実寸）`, Math.abs(max - expect.max) < 1e-6, r3(max));
   check('底面が y=0 に接地', Math.abs(b.min.y - (opts.lift || 0)) < 1e-6, r3(b.min.y));
   check('水平方向が原点中心', Math.abs(c.x) < 1e-6 && Math.abs(c.z) < 1e-6, `x=${r3(c.x)} z=${r3(c.z)}`);
-  check(`高さ = ${expect.h}`, Math.abs(s.y - expect.h) < 1e-4, r3(s.y));
+  check(`高さ = ${r3(expect.h)}`, Math.abs(s.y - expect.h) < 1e-4, r3(s.y));
   console.log(`     寸法: ${r3(s.x)} × ${r3(s.y)} × ${r3(s.z)}`);
 }
 
 // 1) 「作ってみよう!」想定: Z-up、z=0接地、XY中心、mm単位
-//    幅150 × 奥行200 × 高さ180 → 最大辺200を1.0にするので高さは0.9
+//    幅150 × 奥行200 × 高さ180(mm) → メートル換算した実寸で表示される
 run('Z-up CAD (作ってみよう!/本立て 150×200×180mm)',
     boxModel(150, 200, 180, 0, 0, 90), { size: 1, lift: 0, up: 'auto' },
-    { up: 'z', h: 180 / 200 });
+    { up: 'z', max: 200 * MM_TO_M, h: 180 * MM_TO_M });
 
 // 2) Tinkercad想定: Y-up、y=0接地、XZ中心
 run('Y-up (Tinkercad 150×180×200)',
     boxModel(150, 180, 200, 0, 90, 0), { size: 1, lift: 0, up: 'auto' },
-    { up: 'y', h: 180 / 200 });
+    { up: 'y', max: 200 * MM_TO_M, h: 180 * MM_TO_M });
 
-// 3) 極端に小さいモデル(単位がmで書き出された場合)
-run('Y-up かつ極小 (0.15×0.18×0.20)',
-    boxModel(0.15, 0.18, 0.20, 0, 0.09, 0), { size: 1, lift: 0, up: 'auto' },
-    { up: 'y', h: 180 / 200 });
+// 3) 「作ってみよう!」の既知のクセ: 画面表示の1/10の数値で書き出されることがある
+//    → 10倍補正(opts.tenX)をONにすると、本来の150×200×180mmとして表示される
+run('10倍補正あり (15×20×18 → 本来は150×200×180mm)',
+    boxModel(15, 20, 18, 0, 0, 9), { size: 1, lift: 0, up: 'auto', tenX: true },
+    { up: 'z', max: 200 * MM_TO_M, h: 180 * MM_TO_M });
 
 // 4) 手動でZ-up指定を上書き(自動判定が外れた場合の救済)
 console.log('\n■ 手動上書き: Y-upモデルに up:"z" を強制');

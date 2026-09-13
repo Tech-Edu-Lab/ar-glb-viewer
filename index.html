@@ -44,17 +44,21 @@
       <input type="file" id="pattInput" accept=".patt" class="is-hidden">
       <p id="pattName" class="note is-hidden"></p>
       <a class="btn ghost" href="marker/print.html" target="_blank" rel="noopener">マーカーを印刷する</a>
-      <p class="note">白い紙に印刷して、平らな机に置いてください。1辺 8cm 以上をおすすめします。</p>
+      <p class="note">白い紙に<b>必ず100%（等倍）</b>で印刷して、平らな机に置いてください。<br>
+        拡大・縮小して印刷すると、ARで表示される作品の大きさが実際とズレます。</p>
     </section>
 
     <!-- 3. 見え方 -->
     <section class="card">
       <h2><span class="num">3</span>見え方をととのえる</h2>
 
+      <label class="check"><input type="checkbox" id="tenXChk"> 実際より小さく表示される場合はチェック（10倍の大きさにする）</label>
+      <p class="note">「作ってみよう！」のデータが、画面に表示されていた数値の1/10で保存されることがあります。</p>
+
       <div class="field">
-        <label for="sizeRange">大きさ<span class="val" id="sizeVal">1.0</span></label>
+        <label for="sizeRange">大きさの微調整<span class="val" id="sizeVal">1.0</span></label>
         <input type="range" id="sizeRange" min="0.3" max="3" step="0.1" value="1">
-        <p class="note">1.0 = マーカーとだいたい同じ大きさ</p>
+        <p class="note">1.0 = 実際の大きさのまま。画面に収まらないときだけ調整してください。</p>
       </div>
 
       <div class="field">
