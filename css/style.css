@@ -167,6 +167,7 @@ input[type=range]{ width:100%; accent-color:var(--key); height:28px; }
   display:flex; align-items:center; justify-content:center; gap:26px;
 }
 #shutter{
+  position:absolute; top:50%; right:22px; transform:translateY(-50%);
   width:82px; height:82px; border-radius:50%; cursor:pointer;
   background:rgba(255,255,255,.28); border:4px solid #fff;
   display:grid; place-items:center; padding:0;
@@ -208,7 +209,7 @@ input[type=range]{ width:100%; accent-color:var(--key); height:28px; }
 /* ---------- 狭い画面 ---------- */
 @media (max-width:420px){
   .hd h1{ font-size:19px; }
-  #shutter{ width:70px; height:70px; }
+  #shutter{ width:70px; height:70px; right:12px; }
   #shutter span{ width:52px; height:52px; }
   .hudbtn.round{ width:50px; height:50px; font-size:15px; }
   #ctrl{ gap:18px; }
