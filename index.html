@@ -52,8 +52,10 @@
     <section class="card">
       <h2><span class="num">3</span>見え方をととのえる</h2>
 
-      <label class="check"><input type="checkbox" id="tenXChk"> 実際より小さく表示される場合はチェック（10倍の大きさにする）</label>
-      <p class="note">「作ってみよう！」のデータが、画面に表示されていた数値の1/10で保存されることがあります。</p>
+      <label class="check"><input type="checkbox" id="rawScaleChk"> 大きすぎる場合はチェック（実際の数値のまま表示する）</label>
+      <p class="note">「作ってみよう！」のデータは、画面に表示されていた数値の1/10で保存されることが多いため、
+        ふつうは自動で10倍にして表示しています。まれに、はじめから正しい数値で保存されている
+        作品があり、その場合はチェックを入れてください。</p>
 
       <div class="field">
         <label for="sizeRange">大きさの微調整<span class="val" id="sizeVal">1.0</span></label>

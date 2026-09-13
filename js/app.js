@@ -51,7 +51,7 @@
     glbUrl: null, glbName: '',
     pattUrl: null, pattName: '',
     markerMode: 'hiro',
-    size: 1.0, lift: 0, up: 'auto', spin: false, scale10x: false,
+    size: 1.0, lift: 0, up: 'auto', spin: false, rawScale: false,
     deviceId: '',
     sceneEl: null,
     shotBlob: null,
@@ -120,11 +120,13 @@
     if (up === 'z') { model.rotation.x = -Math.PI / 2; }
 
     // ② 実寸表示：CADの数値(mm想定)をそのままメートルへ変換する。
-    //    「作ってみよう！」が画面表示の1/10の数値で書き出すことがあるため、
-    //    その補正(×10, opts.tenX)と、手動の微調整(opts.size)を掛け合わせる。
+    //    「作ってみよう！」は画面表示の1/10の数値で書き出すことが多いため、
+    //    既定で×10を適用する。まれにそのまま正しいmm値で書き出されている場合は
+    //    opts.rawScale を立てて×10を外す（生徒が触るのは救済用チェックのみ）。
+    //    手動の微調整(opts.size)も併せて掛け合わせる。
     //    opts.arUnitScale は AR画面だけに必要な追加変換（下記参照）。
     //    プレビューでは渡さない＝1のまま＝素直に実メートル。
-    var realScale = MM_TO_M * (opts.tenX ? 10 : 1) * (opts.size || 1);
+    var realScale = MM_TO_M * (opts.rawScale ? 1 : 10) * (opts.size || 1);
     var scale = realScale * (opts.arUnitScale || 1);
     model.scale.setScalar(scale);
 
@@ -255,7 +257,7 @@
 
   function previewApply() {
     if (!pv.model) { return; }
-    var fit = fitModel(pv.model, { size: state.size, lift: state.lift, up: state.up, tenX: state.scale10x });
+    var fit = fitModel(pv.model, { size: state.size, lift: state.lift, up: state.up, rawScale: state.rawScale });
     if (fit) { pv.viewSize = Math.max(fit.srcMax * fit.scale * 1.3, PREVIEW_BASE_VIEW_M); }
     if (state.curFile) { showInfo(state.curFile, state.curStats, fit); }
   }
@@ -327,7 +329,7 @@
     rows.forEach(function (r) { html += '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; });
     html += '</dl>';
     html += '<p class="note">「作ってみよう！」の画面に表示されていた大きさと見比べてください。' +
-            '実際より小さく表示される場合は、下の「10倍の大きさで表示する」にチェックを入れてください。</p>';
+            '実際より大きく表示される場合は、下の「大きすぎる場合はチェック」にチェックを入れてください。</p>';
     box.innerHTML = html;
     box.classList.remove('is-hidden');
   }
@@ -342,7 +344,7 @@
       lift: { type: 'number', default: 0 },
       up:   { type: 'string', default: 'auto' },
       spin: { type: 'boolean', default: false },
-      tenX: { type: 'boolean', default: false }
+      rawScale: { type: 'boolean', default: false }
     },
 
     init: function () {
@@ -377,7 +379,7 @@
       if (!this.model) { return; }
       var keep = this.pivot.rotation.y;
       this.pivot.rotation.y = 0;            // 演出回転を除いた状態で正規化する
-      fitModel(this.model, { size: this.data.size, lift: this.data.lift, up: this.data.up, tenX: this.data.tenX, arUnitScale: AR_UNIT_SCALE });
+      fitModel(this.model, { size: this.data.size, lift: this.data.lift, up: this.data.up, rawScale: this.data.rawScale, arUnitScale: AR_UNIT_SCALE });
       this.pivot.rotation.y = keep;
     },
 
@@ -394,7 +396,7 @@
      5. AR画面の組み立てと後始末
      ============================================================ */
   function modelData() {
-    return { src: state.glbUrl, size: state.size, lift: state.lift, up: state.up, spin: state.spin, tenX: state.scale10x };
+    return { src: state.glbUrl, size: state.size, lift: state.lift, up: state.up, spin: state.spin, rawScale: state.rawScale };
   }
 
   function buildScene() {
@@ -679,8 +681,8 @@
       updateModelLive();
     });
 
-    $('tenXChk').addEventListener('change', function (e) {
-      state.scale10x = e.target.checked;
+    $('rawScaleChk').addEventListener('change', function (e) {
+      state.rawScale = e.target.checked;
       previewApply();
       updateModelLive();
     });

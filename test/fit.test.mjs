@@ -53,21 +53,22 @@ function run(name, model, opts, expect) {
   console.log(`     寸法: ${r3(s.x)} × ${r3(s.y)} × ${r3(s.z)}`);
 }
 
-// 1) 「作ってみよう!」想定: Z-up、z=0接地、XY中心、mm単位
-//    幅150 × 奥行200 × 高さ180(mm) → メートル換算した実寸で表示される
-run('Z-up CAD (作ってみよう!/本立て 150×200×180mm)',
-    boxModel(150, 200, 180, 0, 0, 90), { size: 1, lift: 0, up: 'auto' },
+// 1) 「作ってみよう!」の既知のクセ: 画面表示の1/10の数値で書き出されることが多い。
+//    これが既定の(何もチェックしていない)状態なので、opts.rawScaleを渡さない。
+//    幅15 × 奥行20 × 高さ18(実際の1/10) → 既定で×10され、本来の150×200×180mmとして表示される
+run('Z-up CAD (作ってみよう!/本立て。1/10で書き出された既定ケース)',
+    boxModel(15, 20, 18, 0, 0, 9), { size: 1, lift: 0, up: 'auto' },
     { up: 'z', max: 200 * MM_TO_M, h: 180 * MM_TO_M });
 
-// 2) Tinkercad想定: Y-up、y=0接地、XZ中心
-run('Y-up (Tinkercad 150×180×200)',
-    boxModel(150, 180, 200, 0, 90, 0), { size: 1, lift: 0, up: 'auto' },
+// 2) Tinkercad想定: Y-up、y=0接地、XZ中心。まれに正しいmm値で書き出されるケース
+//    (opts.rawScale: true = 「大きすぎる場合はチェック」を入れた状態)
+run('Y-up (Tinkercad。正しいmm値で書き出されたケース)',
+    boxModel(150, 180, 200, 0, 90, 0), { size: 1, lift: 0, up: 'auto', rawScale: true },
     { up: 'y', max: 200 * MM_TO_M, h: 180 * MM_TO_M });
 
-// 3) 「作ってみよう!」の既知のクセ: 画面表示の1/10の数値で書き出されることがある
-//    → 10倍補正(opts.tenX)をONにすると、本来の150×200×180mmとして表示される
-run('10倍補正あり (15×20×18 → 本来は150×200×180mm)',
-    boxModel(15, 20, 18, 0, 0, 9), { size: 1, lift: 0, up: 'auto', tenX: true },
+// 3) 上の2ケースが同じ実寸(150×200×180mm相当)になることの確認を兼ねる
+run('Z-up CAD (正しいmm値で書き出された場合。rawScale:trueが必要)',
+    boxModel(150, 200, 180, 0, 0, 90), { size: 1, lift: 0, up: 'auto', rawScale: true },
     { up: 'z', max: 200 * MM_TO_M, h: 180 * MM_TO_M });
 
 // 4) 手動でZ-up指定を上書き(自動判定が外れた場合の救済)
