@@ -66,7 +66,7 @@ app/
 ├── vendor/
 │   ├── aframe.min.js       A-Frame 1.3.0（three.js r137 同梱）
 │   └── aframe-ar.js        AR.js 3.4.5
-├── data/camera_para.dat    ARToolKit カメラ校正データ
+├── data/camera_para_16x9.dat  ARToolKit カメラ校正データ（640x360用。4:3版を使うと高さがつぶれる）
 ├── marker/
 │   ├── hiro.png            印刷用マーカー画像
 │   ├── pattern-hiro.patt   マーカーの認識パターン
