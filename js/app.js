@@ -12,22 +12,21 @@
   var THREE = AFRAME.THREE;
 
   /* ---------- 定数 ---------- */
-  // ARToolKit カメラ校正（同梱）。640x360(16:9)用。
-  // AR.js標準の camera_para.dat は 640x480(4:3)用で、16:9の検出キャンバスに使うと
-  // AR.jsが縦の焦点距離だけ0.75倍に「引き伸ばし換算」してしまう。マーカー面は合うのに
-  // 高さ方向だけがつぶれる/横に倒れる原因になるため、4:3版の上下を60pxずつ切り落とした
-  // 形(焦点距離はそのまま、光学中心の縦位置だけ-60)に作り直したものを使う。
-  var CAM_PARA   = 'data/camera_para_16x9.dat';
+  // 画面の一番下に出す版。app/ を変更して公開するたびに上げる。
+  // 公開後に「配信されている js/app.js にこの文字列があるか」で反映を確かめられる。
+  var APP_VERSION = '2026-10-07';
+
   var PATT_HIRO  = 'marker/pattern-hiro.patt';      // Hiroマーカー（同梱）
-  // カメラ取り込み解像度と、マーカー検出に使う内部キャンバスの解像度。
-  // この2つと、上のカメラ校正データの「縦横比」は必ず3つとも一致させること。
-  // AR.js は映像を検出キャンバスへ引き伸ばして流し込むため、比率がずれると
-  // マーカーが歪んで認識され、モデルがマーカーからずれて表示される。
-  // 1280x720 は webcam でほぼ確実に使える解像度。検出は 1/2 の 640x360 で足りる。
+  // カメラに希望する解像度。実際に届く大きさは端末しだい（16:9を出せないカメラもある）なので、
+  // 検出と表示の設定は、届いた映像の縦横比を見てから決める（detGeometry / layoutStage）。
   var SRC_W      = 1280;
   var SRC_H      = 720;
-  var DET_W      = 640;
-  var DET_H      = 360;
+  // マーカー検出に使う内部キャンバスの長辺(px)。
+  var DET_LONG   = 640;
+  // カメラの焦点距離の想定（映像の長辺を640pxに換算した値）。水平画角55.4°に当たる。
+  // AR.js標準の校正データと同じ値。2026-10-07に、実機で撮った写真のA4用紙の四隅から
+  // 逆算した値は約54°（読み取り誤差込みで52〜57°）で、ほぼ一致していた。
+  var CAM_F      = 609.4;
 
   // マーカーの黒い枠1辺の実寸(m)。marker/print.html は必ずこの大きさで印刷される前提。
   // hiro.png(2000x2000px)は黒枠の外側の四辺それぞれに、画像1辺の4.05%(81px)の
@@ -59,6 +58,11 @@
     size: 1.0, lift: 0, up: 'auto', spin: false, rawScale: false,
     deviceId: '',
     sceneEl: null,
+    det: null,            // いまのAR.jsに渡してある検出の設定（detGeometry の戻り値）
+    frame: null,          // カメラ映像の実際の大きさ {w,h}
+    streamDims: null,     // 作り直しのとき、次に届く映像の大きさとして使う値
+    restarts: 0,          // 映像の縦横比の食い違いで自動的にやり直した回数
+    stageRect: '',        // 最後に適用した台の位置と大きさ（同じなら何もしないため）
     shotBlob: null,
     curFile: null, curStats: null
   };
@@ -399,33 +403,83 @@
 
   /* ============================================================
      5. AR画面の組み立てと後始末
+
+     画面の構造:
+       #sceneHost   画面いっぱいの「窓」。はみ出した分は切り落とす
+         #stage       映像と3Dを載せる「台」。台ごと拡大して窓を覆う
+           #videoBox    カメラ映像の置き場
+           a-scene      3D（台と同じ大きさ）
+
+     なぜ台が要るか:
+       AR.js は映像を「縦横比を保ったまま画面を覆う」ように拡大するが、A-Frame利用時は
+       3Dキャンバスを映像に合わせない（画面の大きさのまま）。画面と映像の縦横比が違うと
+       ——実機ではアドレスバー等があるので必ず違う——3Dだけが押しつぶされて見える。
+       3Dの投影は「映像の全体」に対して決まっているので、3Dキャンバスは映像と
+       ぴったり同じ矩形に重なっていなければならない。
      ============================================================ */
   function modelData() {
     return { src: state.glbUrl, size: state.size, lift: state.lift, up: state.up, spin: state.spin, rawScale: state.rawScale };
   }
 
+  /**
+   * 届いた映像の大きさから、マーカー検出の設定を決める。
+   *   w, h  検出キャンバスの大きさ（AR.js の作法で常に横長）
+   *   f     検出キャンバス上での焦点距離(px)
+   *   frac  検出キャンバスの幅のうち、映像が占める割合
+   * AR.js は検出キャンバスへ、横長の映像は「全面に引き伸ばして」、縦長の映像は
+   * 「中央に、高さいっぱい・幅 h*h/w の帯として」描く。どちらでも映像の画素が正方形の
+   * まま写るよう、キャンバスの縦横比を映像に合わせる。ここが食い違うと、マーカーの面は
+   * 合って見えるのに立体の高さだけが狂う（2026-10-06に判明。CLAUDE.md 5番）。
+   */
+  function detGeometry(vw, vh) {
+    var even = function (n) { return Math.round(n / 2) * 2; };
+    if (vw >= vh) {
+      return { w: DET_LONG, h: even(DET_LONG * vh / vw), f: CAM_F, frac: 1 };
+    }
+    var h = 480, w = even(h * vh / vw);
+    return { w: w, h: h, f: CAM_F * h / DET_LONG, frac: (h / w) * (h / w) };
+  }
+
+  /**
+   * ARToolKit のカメラ校正データ（ARParam 第4版: 176バイト・ビッグエンディアン）を
+   * 検出の設定に合わせて作り、blob: のURLで渡す。外部へは何も取りに行かない。
+   * 光学中心は画像の中央、レンズのゆがみは無し、縦横の焦点距離は同じ（正方画素）とする。
+   * AR.js標準の camera_para.dat（640x480用）は使わない。別の縦横比のキャンバスに使うと
+   * AR.js が縦横を別々に換算し、縦の焦点距離だけが変わってしまう。
+   */
+  var camParamUrls = {};
+  function cameraParamUrl(g) {
+    var key = [g.w, g.h, g.f].join('_');
+    if (!camParamUrls[key]) {
+      var dv = new DataView(new ArrayBuffer(176));
+      dv.setInt32(0, g.w);
+      dv.setInt32(4, g.h);
+      [ g.f, 0, g.w / 2, 0,
+        0, g.f, g.h / 2, 0,
+        0, 0, 1, 0,                              // ここまで 3x4 の射影行列
+        0, 0, 0, 0,                              // ゆがみ係数 k1 k2 p1 p2
+        g.f, g.f, g.w / 2, g.h / 2, 1            // fx fy cx cy 倍率
+      ].forEach(function (v, i) { dv.setFloat64(8 + i * 8, v); });
+      camParamUrls[key] = URL.createObjectURL(new Blob([dv.buffer]));
+    }
+    return camParamUrls[key];
+  }
+
   function buildScene() {
-    var host = $('sceneHost');
-    host.innerHTML = '';
-
-    // AR.js は映像要素を body 直下(z-index:-2)に挿す。#ar は z-index:9000 の
-    // 独立した重ね合わせ文脈なので、そのままでは映像が背面に隠れてしまう。
-    // シーン生成より先に受け口を用意しておく。
-    window.addEventListener('arjs-video-loaded', adoptVideo);
-
+    // 検出の設定は、映像が届いた時点（onVideoLoaded）で実際の大きさに合わせ直す。
+    // ここには「希望どおりの大きさが届いた場合」の値を入れておく。
+    state.det = detGeometry(SRC_W, SRC_H);
     var arjs = [
       'sourceType: webcam',
       'debugUIEnabled: false',
       'detectionMode: mono',
       'patternRatio: 0.5',
       'maxDetectionRate: 30',
-      'cameraParametersUrl: ' + CAM_PARA,
+      'cameraParametersUrl: ' + cameraParamUrl(state.det),
       'sourceWidth: ' + SRC_W,
       'sourceHeight: ' + SRC_H,
-      'canvasWidth: ' + DET_W,
-      'canvasHeight: ' + DET_H,
-      'displayWidth: ' + window.innerWidth,
-      'displayHeight: ' + window.innerHeight
+      'canvasWidth: ' + state.det.w,
+      'canvasHeight: ' + state.det.h
     ];
     if (state.deviceId) { arjs.push('deviceId: ' + state.deviceId); }
 
@@ -470,7 +524,7 @@
     cam.setAttribute('camera', '');
     scene.appendChild(cam);
 
-    host.appendChild(scene);
+    $('stage').appendChild(scene);
     state.sceneEl = scene;
 
     marker.addEventListener('markerFound', function () { $('hint').classList.add('is-off'); });
@@ -480,42 +534,136 @@
     });
   }
 
+  /** いま動いている AR.js のセッション（まだ無ければ null） */
+  function arSession() {
+    var sys = state.sceneEl && state.sceneEl.systems && state.sceneEl.systems.arjs;
+    return (sys && sys._arSession) || null;
+  }
+
+  function releaseVideo(v) {
+    if (v.srcObject) {
+      v.srcObject.getTracks().forEach(function (t) { t.stop(); });   // カメラを確実に解放
+      v.srcObject = null;
+    }
+    v.remove();
+  }
+
   /**
-   * AR.js が body 直下に挿した映像要素を AR画面の中へ引き取る。
-   * サイズ・位置は AR.js が WebGLキャンバスと一致させているので触らない。
-   * 変更するのは「どこにぶら下がるか」と「重ね順」だけ。
+   * AR.js がカメラ映像を用意できた直後に呼ばれる（AR.js は映像要素を body 直下に挿す）。
+   *   (1) 映像要素を、台の中へ引き取る
+   *   (2) 届いた映像の縦横比に、検出の設定と台の形を合わせる
+   * AR.js 自身もこの同じ合図で検出器の初期化を始めるが、こちらは起動時に登録してあるので
+   * 必ず先に呼ばれ、初期化には書き換えた後の設定が使われる。
    */
-  function adoptVideo() {
-    var v = document.getElementById('arjs-video');
-    var host = $('sceneHost');
-    if (!v || !host) { return; }
-    host.insertBefore(v, host.firstChild);
-    v.style.zIndex = '0';
+  function onVideoLoaded() {
+    var sess = arSession();
+    var v = sess && sess.arSource.domElement;
+    // いまのAR以外の映像は、カメラごと止める。
+    // （はじめてすぐ「もどる」を押すと、片づけた後になってから映像が届くことがある）
+    Array.prototype.forEach.call(document.querySelectorAll('#arjs-video'), function (other) {
+      if (other !== v) { releaseVideo(other); }
+    });
+    if (!v || !v.srcObject || v.parentNode === $('videoBox')) { return; }
+    $('videoBox').appendChild(v);
     v.setAttribute('playsinline', '');
     v.muted = true;
-    var cv = host.querySelector('.a-canvas');
-    if (cv) { cv.style.zIndex = '1'; }
+    v.addEventListener('loadedmetadata', onVideoSize);
+    v.addEventListener('resize', onVideoSize);
+
+    var st = v.srcObject.getVideoTracks()[0].getSettings();
+    state.frame = state.streamDims || { w: st.width, h: st.height };
+    state.streamDims = null;
+    state.det = detGeometry(state.frame.w, state.frame.h);
+    var p = sess.arContext.parameters;
+    p.canvasWidth = state.det.w;
+    p.canvasHeight = state.det.h;
+    p.cameraParametersUrl = cameraParamUrl(state.det);
+    // AR.js は検出器の初期化が済んだ時点の「映像要素の縦横」で横長／縦長を決める。
+    // その前に台を正しい形にしておく。
+    layoutStage();
+  }
+
+  /** 映像の実際の大きさが分かったとき／途中で変わったとき（端末を回したときなど） */
+  function onVideoSize(e) {
+    var v = e.target;
+    if (!v.videoWidth || !state.sceneEl) { return; }
+    var g = detGeometry(v.videoWidth, v.videoHeight);
+    var dims = { w: v.videoWidth, h: v.videoHeight };     // 片づけると0になるので先に控える
+    if ((g.w !== state.det.w || g.h !== state.det.h) && state.restarts < 3) {
+      // 検出の設定と映像の縦横比が食い違った。検出器は作り直さないと設定を変えられないので、
+      // いま分かった大きさを前提に AR をはじめからやり直す。
+      // （回数に上限を置くのは、万一食い違いが解消しない端末でカメラの再起動を繰り返さないため）
+      state.restarts++;
+      teardownScene();
+      state.streamDims = dims;
+      buildScene();
+      return;
+    }
+    state.frame = dims;
+    layoutStage();
+  }
+
+  /**
+   * 台(#stage)を、映像が窓(#sceneHost)を覆う大きさ・位置に合わせる。
+   * 3Dキャンバスは台と同じ大きさになるので、映像と3Dが必ず同じ矩形に重なる。
+   * 端数のある位置に置くと映像がにじむので、すべて整数の画素にそろえる。
+   */
+  function layoutStage() {
+    var fr = state.frame;
+    if (!fr || !state.sceneEl) { return; }
+    var host = $('sceneHost'), W = host.clientWidth, H = host.clientHeight;
+    var k = Math.max(W / fr.w, H / fr.h);                 // 縦横比を保ったまま窓を覆う倍率
+    var vw = Math.round(fr.w * k), vh = Math.round(fr.h * k);
+    var sw = Math.round(vw / state.det.frac);             // 横長の映像なら 台＝映像
+    var rect = [Math.round((W - sw) / 2), Math.round((H - vh) / 2), sw, vh, vw];
+    if (rect.join() === state.stageRect) { return; }
+    state.stageRect = rect.join();
+    place($('stage'), rect[0], rect[1], sw, vh);
+    place($('videoBox'), Math.round((sw - vw) / 2), 0, vw, vh);
+    state.sceneEl.resize();                               // A-Frame に、3Dキャンバスを台の大きさへ合わせ直させる
+  }
+
+  function place(el, left, top, w, h) {
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+  }
+
+  /** シーン・映像・AR.js のセッションを片づける（AR画面そのものは閉じない） */
+  function teardownScene() {
+    Array.prototype.forEach.call(document.querySelectorAll('#arjs-video'), releaseVideo);
+    var scene = state.sceneEl;
+    if (scene) {
+      try { if (scene.renderer) { scene.renderer.setAnimationLoop(null); } } catch (e) {}
+      var sess = arSession();
+      if (sess) {
+        // AR.js は window に登録したリスナーを外す手段を持たない。残しておくと、次に始めたとき
+        // 古いセッションが検出器をもう1つ作り、画面の大きさが変わるたびに古い映像の寸法を
+        // body に書き戻す。中身を空にして止め、検出器（WASM）も解放する。
+        sess.arContext.init = function () {};
+        sess.arSource.onResize = function () {};
+        sess.arSource.copyElementSizeTo = function () {};
+        // 解放は少し待ってから。初期化の途中で解放すると、AR.js の残りの初期化処理が
+        // 空になった検出器に触れてエラーになる。
+        setTimeout(function () { sess.arContext.dispose(); }, 5000);
+      }
+      scene.remove();
+      state.sceneEl = null;
+    }
+    $('stage').removeAttribute('style');
+    $('videoBox').removeAttribute('style');
+    state.frame = null;
+    state.stageRect = '';
   }
 
   function stopAr() {
-    window.removeEventListener('arjs-video-loaded', adoptVideo);
-    var v = document.getElementById('arjs-video') || document.querySelector('video');
-    if (v) {
-      if (v.srcObject) {
-        v.srcObject.getTracks().forEach(function (t) { t.stop(); });   // カメラを確実に解放
-        v.srcObject = null;
-      }
-      if (v.parentNode) { v.parentNode.removeChild(v); }
-    }
-    if (state.sceneEl) {
-      try { if (state.sceneEl.renderer) { state.sceneEl.renderer.setAnimationLoop(null); } } catch (e) {}
-      if (state.sceneEl.parentNode) { state.sceneEl.parentNode.removeChild(state.sceneEl); }
-      state.sceneEl = null;
-    }
-    $('sceneHost').innerHTML = '';
+    teardownScene();
+    state.streamDims = null;
+    state.restarts = 0;
     document.body.classList.remove('ar-mode');
-    document.body.style.margin = '';
-    document.body.style.overflow = '';
+    // AR.js が body に書き込んだ寸法と余白を消す
+    ['width', 'height', 'margin', 'overflow'].forEach(function (p) { document.body.style[p] = ''; });
   }
 
   function showArError(msg) {
@@ -531,35 +679,26 @@
      ============================================================ */
   function capture() {
     var scene = state.sceneEl;
-    if (!scene || !scene.renderer) { return null; }
+    var v = document.getElementById('arjs-video');
+    if (!scene || !scene.renderer || !v || !v.videoWidth) { return null; }
     var gl = scene.renderer.domElement;
     try { scene.renderer.render(scene.object3D, scene.camera); } catch (e) {}
 
-    var W = gl.width, H = gl.height;
-    if (!W || !H) { return null; }
+    // 写真にするのは「窓」に見えている範囲。台は窓より大きいので、はみ出した分は写さない。
+    var hr = $('sceneHost').getBoundingClientRect();
+    var gr = gl.getBoundingClientRect();
+    var vr = v.getBoundingClientRect();
+    if (!gr.width) { return null; }
+    var k = window.devicePixelRatio || 1;        // 画面と同じ細かさで撮る
 
     var out = document.createElement('canvas');
-    out.width = W; out.height = H;
+    out.width = Math.round(hr.width * k);
+    out.height = Math.round(hr.height * k);
     var ctx = out.getContext('2d');
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
-
-    // 映像とキャンバスは AR.js により同一矩形に揃えられているが、
-    // 端末やタイミングでずれることがあるため実測値で対応付ける。
-    var v = document.getElementById('arjs-video') || document.querySelector('video');
-    if (v && v.videoWidth) {
-      var gr = gl.getBoundingClientRect();
-      var vr = v.getBoundingClientRect();
-      if (gr.width > 0 && gr.height > 0) {
-        var kx = W / gr.width, ky = H / gr.height;
-        ctx.drawImage(v,
-          (vr.left - gr.left) * kx, (vr.top - gr.top) * ky,
-          vr.width * kx, vr.height * ky);
-      } else {
-        ctx.drawImage(v, 0, 0, W, H);
-      }
-    }
-    ctx.drawImage(gl, 0, 0, W, H);
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(v, (vr.left - hr.left) * k, (vr.top - hr.top) * k, vr.width * k, vr.height * k);
+    ctx.drawImage(gl, (gr.left - hr.left) * k, (gr.top - hr.top) * k, gr.width * k, gr.height * k);
     return out;
   }
 
@@ -725,6 +864,9 @@
     $('saveBtn').addEventListener('click', saveShot);
 
     window.addEventListener('beforeunload', stopAr);
+    // AR用の受け口は常設する（AR.js より先に呼ばれる必要がある。onVideoLoaded 参照）
+    window.addEventListener('arjs-video-loaded', onVideoLoaded);
+    window.addEventListener('resize', layoutStage);
   }
 
   function updateModelLive() {
@@ -781,4 +923,5 @@
 
   /* ---------- 起動 ---------- */
   bind();
+  $('appVer').textContent = 'バージョン ' + APP_VERSION;
 })();
