@@ -5,6 +5,8 @@
 //   実行: node test/ar-rig/check.mjs            全条件
 //         node test/ar-rig/check.mjs 2:1        名前に "2:1" を含む条件だけ
 //         SHOTS=/tmp/x node test/ar-rig/check.mjs   画面と撮影写真をPNGで保存
+//         AR_URL=https://tech-edu-lab.github.io/ar-glb-viewer/ node test/ar-rig/check.mjs
+//                                            手元のファイルではなく、公開サイトそのものを検査
 //
 // 実機のカメラ・照明・印刷精度は含まれない。合格しても「実機で動いた」ことにはならない。
 import fs from 'fs';
@@ -218,7 +220,7 @@ async function run(sc, base, glb) {
 }
 
 const filter = process.argv[2];
-const site = await serve();
+const site = process.env.AR_URL ? { url: process.env.AR_URL, close() {} } : await serve();
 const glb = boxGlb(...BOX);
 let failed = 0;
 for (const sc of SCENARIOS) {
