@@ -14,7 +14,7 @@
   /* ---------- 定数 ---------- */
   // 画面の一番下に出す版。app/ を変更して公開するたびに上げる。
   // 公開後に「配信されている js/app.js にこの文字列があるか」で反映を確かめられる。
-  var APP_VERSION = '2026-10-07';
+  var APP_VERSION = '2026-10-09';
 
   var PATT_HIRO  = 'marker/pattern-hiro.patt';      // Hiroマーカー（同梱）
   // カメラに希望する解像度。実際に届く大きさは端末しだい（16:9を出せないカメラもある）なので、
@@ -37,8 +37,15 @@
   // ホーム画面プレビューの基準視野(m)。モデルがこれより小さいときはこの広さのまま映す
   // ことで、実際より小さいモデルが「小さいまま」見えるようにする(カメラを寄せて誤魔化さない)。
   var PREVIEW_BASE_VIEW_M = 0.3;
-  // CADの数値(mm)をA-Frameの単位(m)に変換する係数。「作ってみよう！」はmmでエクスポートする前提。
-  var MM_TO_M = 0.001;
+  // GLB内の数値1が、実物の何メートルに当たるか。書き出したアプリによって違う。
+  //   [0] メートル            glTFの規格どおり（「正投影図 3Dクリエイター」など）
+  //   [1] 数値の10倍がmm      「作ってみよう！」（220mmの作品が 22 と書き出される）
+  //   [2] mm                  CADの数値がそのまま入っている場合
+  // ファイルには単位が書かれていないので、数値の大きさで見分ける（fitModel）。
+  // 最大の辺が UNIT_METER_MAX 未満ならメートルとみなす。授業で作る作品（数cm〜2m）は、
+  // メートルなら 0.05〜2、「作ってみよう！」なら 5〜200 になり、3 を境にほぼ重ならない。
+  var UNIT_STEPS = [1, 0.01, 0.001];
+  var UNIT_METER_MAX = 3;
   // 【重要・実機テストで判明した落とし穴】
   // 同梱のAR.jsビルドは <a-marker size="..."> を実装内部で一切参照しない(死んでいる属性)。
   // ARToolKitの姿勢行列は常に「マーカー1辺の実寸＝1」という相対座標系で返ってくるため、
@@ -128,14 +135,14 @@
     var up = (opts.up === 'auto') ? detected : opts.up;
     if (up === 'z') { model.rotation.x = -Math.PI / 2; }
 
-    // ② 実寸表示：CADの数値(mm想定)をそのままメートルへ変換する。
-    //    「作ってみよう！」は画面表示の1/10の数値で書き出すことが多いため、
-    //    既定で×10を適用する。まれにそのまま正しいmm値で書き出されている場合は
-    //    opts.rawScale を立てて×10を外す（生徒が触るのは救済用チェックのみ）。
-    //    手動の微調整(opts.size)も併せて掛け合わせる。
-    //    opts.arUnitScale は AR画面だけに必要な追加変換（下記参照）。
+    // ② 実寸表示：GLB内の数値を、実物のメートルへ変換する。
+    //    単位は数値の大きさで見分ける（UNIT_STEPS の説明を参照）。見分けが外れて大きすぎた
+    //    ときの救済が opts.rawScale（「大きすぎる場合はチェック」）で、1段階小さい単位として読む。
+    //    生徒に数値は入力させない。手動の微調整(opts.size)も併せて掛け合わせる。
+    //    opts.arUnitScale は AR画面だけに必要な追加変換（AR_UNIT_SCALE の説明を参照）。
     //    プレビューでは渡さない＝1のまま＝素直に実メートル。
-    var realScale = MM_TO_M * (opts.rawScale ? 1 : 10) * (opts.size || 1);
+    var unitStep = (max0 < UNIT_METER_MAX ? 0 : 1) + (opts.rawScale ? 1 : 0);
+    var realScale = UNIT_STEPS[unitStep] * (opts.size || 1);
     var scale = realScale * (opts.arUnitScale || 1);
     model.scale.setScalar(scale);
 
@@ -146,7 +153,7 @@
     model.position.z = -c2.z;
     model.position.y = -b2.min.y + (opts.lift || 0);
 
-    return { detectedUp: detected, usedUp: up, srcSize: s0, srcMax: max0, scale: realScale };
+    return { detectedUp: detected, usedUp: up, srcSize: s0, srcMax: max0, scale: realScale, unitStep: unitStep };
   }
 
   /**
@@ -323,10 +330,12 @@
     var f2 = function (n) { return (Math.round(n * 100) / 100).toLocaleString('ja-JP'); };
     var fcm = function (n) { return (Math.round(n * fit.scale * 100 * 10) / 10).toLocaleString('ja-JP'); };
     var upLabel = { z: 'Z軸が上（CAD由来）', y: 'Y軸が上（glTF標準）' }[fit.detectedUp];
+    var unitLabel = ['メートル（glTF標準）', '数値の10倍がmm（「作ってみよう！」の形式）', 'mm'][fit.unitStep];
     var rows = [
       ['ファイル', file.name + '（' + Math.round(file.size / 1024).toLocaleString('ja-JP') + ' KB）'],
       ['実際の大きさ', '<b>' + fcm(s.x) + ' × ' + fcm(s.y) + ' × ' + fcm(s.z) + ' cm</b>（ARで表示されるサイズ）'],
       ['もとの寸法', f2(s.x) + ' × ' + f2(s.y) + ' × ' + f2(s.z) + '（GLB内の数値）'],
+      ['数値の単位', unitLabel + (state.rawScale ? '（チェックで1段階小さく読んでいます）' : '（自動で見分けました）')],
       ['自動判定した上方向', '<span class="' + (fit.detectedUp === 'z' ? 'flag-ok' : '') + '">' + upLabel + '</span>'],
       ['三角形の数', stats.tri.toLocaleString('ja-JP')],
       ['メッシュ／材質', stats.mesh + ' / ' + stats.mat],
@@ -337,7 +346,7 @@
     var html = '<dl>';
     rows.forEach(function (r) { html += '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; });
     html += '</dl>';
-    html += '<p class="note">「作ってみよう！」の画面に表示されていた大きさと見比べてください。' +
+    html += '<p class="note">作品をつくったアプリの画面に表示されていた大きさと見比べてください。' +
             '実際より大きく表示される場合は、下の「大きすぎる場合はチェック」にチェックを入れてください。</p>';
     box.innerHTML = html;
     box.classList.remove('is-hidden');

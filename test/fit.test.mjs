@@ -4,7 +4,7 @@ import fs from 'fs';
 // ---- app.js から正規化ロジックを実物のまま抜き出して評価する ----
 // テストファイルからの相対で解決する（フォルダを移動しても壊れないように）
 const src = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-// fitModelが参照する定数(MARKER_SIZE_M, MM_TO_M)も含めて抜き出す
+// fitModelが参照する定数(UNIT_STEPS など)も含めて抜き出す
 const start = src.indexOf('var MARKER_SIZE_M');
 const end   = src.indexOf('/**\n   * マテリアルの安全化');
 if (start < 0 || end < 0) { throw new Error('関数の抽出に失敗'); }
@@ -22,7 +22,7 @@ function boxModel(sx, sy, sz, cx, cy, cz) {
   return root;
 }
 
-// アプリ本体(fitModel)と同じ前提: CADの数値はmm。値を変えたらこちらも変える。
+// 期待値の計算用（mm → m）
 const MM_TO_M = 0.001;
 
 let pass = 0, fail = 0;
@@ -70,6 +70,21 @@ run('Y-up (Tinkercad。正しいmm値で書き出されたケース)',
 run('Z-up CAD (正しいmm値で書き出された場合。rawScale:trueが必要)',
     boxModel(150, 200, 180, 0, 0, 90), { size: 1, lift: 0, up: 'auto', rawScale: true },
     { up: 'z', max: 200 * MM_TO_M, h: 180 * MM_TO_M });
+
+// 3b) glTFの規格どおり「メートル・Y-up」で書き出すアプリ（正投影図 3Dクリエイターなど）。
+//     数値が小さい(最大の辺が3未満)ことからメートルと見分け、そのままの大きさで表示する
+run('Y-up・メートル (3Dクリエイター。0.15×0.18×0.20m)',
+    boxModel(0.15, 0.18, 0.20, 0, 0.09, 0), { size: 1, lift: 0, up: 'auto' },
+    { up: 'y', max: 0.2, h: 0.18 });
+
+console.log('\n■ 単位の見分け（最大の辺が3未満ならメートル）と、チェックでの1段階下げ');
+{
+  const step = (max, rawScale) => fitModel(boxModel(max, max / 2, max / 2, 0, 0, max / 4), { size: 1, lift: 0, up: 'auto', rawScale }).unitStep;
+  check('最大の辺 2.9 → メートル', step(2.9, false) === 0, step(2.9, false));
+  check('最大の辺 3.0 → 数値の10倍がmm', step(3.0, false) === 1, step(3.0, false));
+  check('メートルと見分けたものにチェック → 数値の10倍がmm', step(0.3, true) === 1, step(0.3, true));
+  check('数値の10倍がmm にチェック → mm', step(32.4, true) === 2, step(32.4, true));
+}
 
 // 4) 手動でZ-up指定を上書き(自動判定が外れた場合の救済)
 console.log('\n■ 手動上書き: Y-upモデルに up:"z" を強制');

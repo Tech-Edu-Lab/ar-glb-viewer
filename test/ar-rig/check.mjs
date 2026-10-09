@@ -39,6 +39,8 @@ const SCENARIOS = [
   // カメラが16:9を出せない端末
   { name: '画面2:1 / 映像4:3', win: [1089, 544], stream: [640, 480], elev: 35, dist: 6 },
   { name: '画面16:9 / 映像4:3', win: [1366, 768], stream: [640, 480], elev: 60, dist: 6 },
+  // 数値の単位がちがうGLB（同じ 150×100×220mm の箱を、メートルで書き出したもの）
+  { name: 'メートル単位のGLB / 画面2:1', win: [1089, 544], stream: [1280, 720], elev: 35, dist: 6, glbUnit: 0.01 },
   // 縦向きの映像（タブレット持ちで縦にしたとき）
   // （疑似カメラは「幅1280・高さ720を希望」に対し、それを超える分を切り落とす。
   //   縦長のまま届かせるには、元の映像を希望より小さくしておく必要がある）
@@ -221,11 +223,10 @@ async function run(sc, base, glb) {
 
 const filter = process.argv[2];
 const site = process.env.AR_URL ? { url: process.env.AR_URL, close() {} } : await serve();
-const glb = boxGlb(...BOX);
 let failed = 0;
 for (const sc of SCENARIOS) {
   if (filter && !sc.name.includes(filter)) { continue; }
-  const r = await run(sc, site.url, glb);
+  const r = await run(sc, site.url, boxGlb(...BOX.map((v) => v * (sc.glbUnit || 1))));
   const ok = r.problems.length === 0;
   if (!ok && !sc.info) { failed++; }
   console.log(`${sc.info ? '（参考）' : ok ? '✅' : '❌'} ${r.name}`);

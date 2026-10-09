@@ -14,7 +14,7 @@
 <div id="home" class="screen is-active">
   <header class="hd">
     <h1>3DモデルARビューア</h1>
-    <p class="sub">「作ってみよう！」でつくった作品を、マーカーの上にARで表示します</p>
+    <p class="sub">CADでつくった作品（GLBファイル）を、マーカーの上にARで表示します</p>
   </header>
 
   <main class="wrap">
@@ -23,7 +23,7 @@
     <section class="card">
       <h2><span class="num">1</span>3Dモデル（GLB）をえらぶ</h2>
       <input type="file" id="glbInput" accept=".glb,.gltf,model/gltf-binary">
-      <p class="note">「作ってみよう！」の〔保存〕で <b>.glb</b> を選んで書き出したファイルです。</p>
+      <p class="note">「作ってみよう！」や「正投影図 3Dクリエイター」で、<b>.glb</b> をえらんで保存したファイルです。</p>
 
       <div id="previewBox" class="preview-box is-hidden">
         <canvas id="preview"></canvas>
@@ -52,10 +52,9 @@
     <section class="card">
       <h2><span class="num">3</span>見え方をととのえる</h2>
 
-      <label class="check"><input type="checkbox" id="rawScaleChk"> 大きすぎる場合はチェック（実際の数値のまま表示する）</label>
-      <p class="note">「作ってみよう！」のデータは、画面に表示されていた数値の1/10で保存されることが多いため、
-        ふつうは自動で10倍にして表示しています。まれに、はじめから正しい数値で保存されている
-        作品があり、その場合はチェックを入れてください。</p>
+      <label class="check"><input type="checkbox" id="rawScaleChk"> 大きすぎる場合はチェック（1段階小さく表示する）</label>
+      <p class="note">ファイルの中の数値の単位は、つくったアプリによってちがいます。ふつうは自動で見分けて、
+        実物の大きさで表示します。見分けがはずれて大きすぎるときだけ、チェックを入れてください。</p>
 
       <div class="field">
         <label for="sizeRange">大きさの微調整<span class="val" id="sizeVal">1.0</span></label>
