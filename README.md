@@ -61,11 +61,13 @@ python3 -m http.server 8000
 ```
 app/
 ├── index.html              画面（ホーム / AR / 撮影結果 の3画面SPA）
+├── icon.svg / icon-32.png / icon-180.png   アプリのマーク（ブラウザのタブ・ホーム画面の見出し）
 ├── css/style.css           スタイル
 ├── js/app.js               本体ロジック
 ├── vendor/
 │   ├── aframe.min.js       A-Frame 1.3.0（three.js r137 同梱）
-│   └── aframe-ar.js        AR.js 3.4.5
+│   ├── aframe-ar.js        AR.js 3.4.5
+│   └── fonts/              見出し（アプリ名）用の書体。使う文字だけを抜き出したもの
 ├── marker/
 │   ├── hiro.png            印刷用マーカー画像
 │   ├── pattern-hiro.patt   マーカーの認識パターン
@@ -121,5 +123,6 @@ node test/ar-rig/check.mjs    # 全条件。SHOTS=フォルダ を付けると�
 - [A-Frame](https://aframe.io/) — MIT
 - [AR.js](https://github.com/AR-js-org/AR.js) — MIT
 - [three.js](https://threejs.org/) — MIT
+- [Zen Maru Gothic](https://github.com/googlefonts/zen-marugothic) — SIL Open Font License 1.1（`vendor/fonts/OFL.txt`）
 
 いずれも教育目的での利用・再配布に制限はない。

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44">
+  <!-- アプリのマーク（ホーム画面左上のものと同じ形）。ブラウザのタブに出す。
+       ひし形＝机に置いたマーカー、その上に立つ箱＝ARで表示した作品。
+       「正投影図 3Dクリエイター」のマークと、色・角の丸み・線の太さをそろえてある -->
+  <rect x="1" y="1" width="42" height="42" rx="9" fill="#0b62b0"/>
+  <g fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M6 28 22 36 38 28M6 28 12 25M38 28 32 25"/>
+    <path d="M12 12.5 22 8 32 12.5V25.5L22 30 12 25.5z"/>
+    <path d="M12 12.5 22 17 32 12.5M22 17V30"/>
+  </g>
+  <path d="M22 17 32 12.5V25.5L22 30z" fill="#ffffff" opacity=".28"/>
+</svg>

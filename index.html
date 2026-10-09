@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>3DモデルARビューア</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -13,8 +16,20 @@
      ============================================================ -->
 <div id="home" class="screen is-active">
   <header class="hd">
-    <h1>3DモデルARビューア</h1>
-    <p class="sub">CADでつくった作品（GLBファイル）を、マーカーの上にARで表示します</p>
+    <!-- マークの形は icon.svg と同じ。変えるときは両方そろえる -->
+    <svg class="hd-mark" viewBox="0 0 44 44" aria-hidden="true">
+      <rect x="1" y="1" width="42" height="42" rx="9" fill="#0b62b0"/>
+      <g fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M6 28 22 36 38 28M6 28 12 25M38 28 32 25"/>
+        <path d="M12 12.5 22 8 32 12.5V25.5L22 30 12 25.5z"/>
+        <path d="M12 12.5 22 17 32 12.5M22 17V30"/>
+      </g>
+      <path d="M22 17 32 12.5V25.5L22 30z" fill="#fff" opacity=".28"/>
+    </svg>
+    <div>
+      <h1>3Dモデル ARビューア</h1>
+      <p class="sub">つくった作品を、ARで実物の大きさにしてたしかめよう</p>
+    </div>
   </header>
 
   <main class="wrap">

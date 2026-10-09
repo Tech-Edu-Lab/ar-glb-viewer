@@ -41,12 +41,26 @@ body.ar-mode{ overflow:hidden; }
 }
 
 /* ---------- ホーム ---------- */
-.hd{
-  background:var(--key); color:#fff;
-  padding:20px 16px 18px; text-align:center;
+/* 見出し（マーク＋アプリ名）。「正投影図 3Dクリエイター」と同じ組み方・同じ書体にしてある。
+   書体は Zen Maru Gothic Black。外部からは読み込まず、アプリ名に使う文字
+   「3Dモデル ARビューア」だけを抜き出したファイルを同梱している（vendor/fonts/）。
+   アプリ名を変えるときは、このファイルも作り直すこと（無い文字は端末のフォントになる） */
+@font-face{
+  font-family:"AR Title";
+  font-weight:900;
+  src:url("../vendor/fonts/zen-maru-gothic-title.woff2") format("woff2");
+  font-display:swap;
 }
-.hd h1{ margin:0; font-size:22px; letter-spacing:.02em; }
-.hd .sub{ margin:6px 0 0; font-size:14px; opacity:.92; }
+.hd{
+  max-width:720px; margin:0 auto; padding:18px 14px 2px;
+  display:flex; align-items:center; gap:12px;
+}
+.hd-mark{ width:44px; height:44px; flex:none; }
+.hd h1{
+  margin:0; font-size:23px; font-weight:900; line-height:1.2; letter-spacing:.01em;
+  font-family:"AR Title","Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",Meiryo,sans-serif;
+}
+.hd .sub{ margin:2px 0 0; font-size:14px; line-height:1.4; color:var(--sub); }
 
 .wrap{ max-width:720px; margin:0 auto; padding:16px 14px 48px; }
 
